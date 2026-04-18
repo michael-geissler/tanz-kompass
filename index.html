@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tanz-Kompass</title>
+    
+    <!-- Adobe Fonts -->
+    <link rel="stylesheet" href="https://use.typekit.net/ptq2kts.css">
+    
+    <!-- Tailwind CSS für das Styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & Babel (um JSX im Browser auszuführen) -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        body {
+            font-family: "stevie-sans", sans-serif;
+            background-color: #f8fafc;
+        }
+        h1, h2, h3, .total-black {
+            font-family: "total-black", sans-serif;
+            font-weight: 900;
+        }
+        .monitor-header {
+            letter-spacing: 0.5em;
+        }
+        .app-container {
+            font-family: "stevie-sans", sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <!-- Firebase & React Logic -->
+    <script type="text/babel" data-type="module" data-presets="react">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+        // --- FIREBASE KONFIGURATION ---
+        // Wenn die App in der Vorschau läuft, nutzen wir die bereitgestellte Umgebung.
+        // Für dein GitHub-Hosting kannst du die 'else'-Sektion mit deinen Daten füllen.
+        let firebaseConfig;
+        if (typeof __firebase_config !== 'undefined') {
+            firebaseConfig = JSON.parse(__firebase_config);
+        } else {
+            firebaseConfig = {
+                apiKey: "DEIN_API_KEY",
+                authDomain: "DEIN_PROJEKT.firebaseapp.com",
+                projectId: "DEIN_PROJEKT",
+                storageBucket: "DEIN_PROJEKT.appspot.com",
+                messagingSenderId: "DEINE_ID",
+                appId: "DEINE_APP_ID"
+            };
+        }
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'tanz-kompass-prod'; 
+
+        const { useState, useEffect } = React;
+
+        function TanzKompass() {
+            const [user, setUser] = useState(null);
+            const [view, setView] = useState('selection');
+            const [activeDances, setActiveDances] = useState([]);
+
+            useEffect(() => {
+                const initAuth = async () => {
+                    try {
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    } catch (err) {
+                        console.error("Auth Fehler:", err);
+                    }
+                };
+                initAuth();
+                const unsubscribe = onAuthStateChanged(auth, setUser);
+                return () => unsubscribe();
+            }, []);
+
+            useEffect(() => {
+                if (!user) return;
+                // Pfad: artifacts/{appId}/public/data/status/current (6 Segmente)
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'status', 'current');
+                const unsubscribe = onSnapshot(docRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        setActiveDances(docSnap.data().activeDances || []);
+                    }
+                }, (err) => {
+                    // Falls das Dokument noch nicht existiert, ist das am Anfang normal.
+                });
+                return () => unsubscribe();
+            }, [user]);
+
+            const toggleDance = async (dance) => {
+                if (!user) return;
+                let newSelection = [...activeDances];
+                const isSelected = newSelection.find(d => d.id === dance.id);
+                
+                if (dance.id === 'pause') {
+                    newSelection = isSelected ? [] : [dance];
+                } else {
+                    newSelection = newSelection.filter(d => d.id !== 'pause');
+                    if (isSelected) {
+                        newSelection = newSelection.filter(d => d.id !== dance.id);
+                    } else {
+                        newSelection.push(dance);
+                    }
+                }
+                
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'status', 'current');
+                try {
+                    await setDoc(docRef, { activeDances: newSelection, updatedAt: Date.now() });
+                } catch (err) {
+                    console.error("Update Fehler:", err);
+                }
+            };
+
+            const clearAll = async () => {
+                if (!user) return;
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'status', 'current');
+                try {
+                    await setDoc(docRef, { activeDances: [], updatedAt: Date.now() });
+                } catch (err) {
+                    console.error("Clear Fehler:", err);
+                }
+            };
+
+            const DANCE_STYLES = [
+                { id: 'ccc', name: 'Cha Cha Cha', category: 'Latein', color: 'bg-rose-600' },
+                { id: 'rumba', name: 'Rumba', category: 'Latein', color: 'bg-red-700' },
+                { id: 'samba', name: 'Samba', category: 'Latein', color: 'bg-amber-500' },
+                { id: 'jive', name: 'Jive', category: 'Latein', color: 'bg-orange-600' },
+                { id: 'pasodoble', name: 'Paso Doble', category: 'Latein', color: 'bg-red-900' },
+                { id: 'walzer', name: 'Langsamer Walzer', category: 'Standard', color: 'bg-blue-700' },
+                { id: 'tango', name: 'Tango', category: 'Standard', color: 'bg-stone-900' },
+                { id: 'wwalzer', name: 'Wiener Walzer', category: 'Standard', color: 'bg-cyan-600' },
+                { id: 'quickstep', name: 'Quickstep', category: 'Standard', color: 'bg-emerald-600' },
+                { id: 'slowfox', name: 'Slowfox', category: 'Standard', color: 'bg-teal-700' },
+                { id: 'discofox', name: 'Discofox', category: 'Sonstige', color: 'bg-indigo-600' },
+                { id: 'salsa', name: 'Salsa', category: 'Sonstige', color: 'bg-red-500' },
+                { id: 'bachata', name: 'Bachata', category: 'Sonstige', color: 'bg-pink-700' },
+            ];
+
+            if (view === 'display') {
+                return (
+                    <div className="min-h-screen bg-white flex flex-col items-center justify-center relative p-8 app-container">
+                        <div className="absolute top-10 text-center w-full">
+                            <h1 className="text-slate-100 text-3xl font-black uppercase monitor-header total-black">Tanz-Kompass</h1>
+                        </div>
+                        {activeDances.length > 0 ? (
+                            <div className="text-center w-full max-w-7xl animate-in fade-in zoom-in duration-700">
+                                <h2 className="text-slate-400 text-2xl font-light mb-12 uppercase tracking-widest display-label">
+                                    {activeDances.some(d => d.id === 'pause') ? 'Status' : 'Aktueller Tanz'}
+                                </h2>
+                                <div className="flex flex-wrap justify-center items-center gap-12">
+                                    {activeDances.map((dance, idx) => (
+                                        <React.Fragment key={dance.id}>
+                                            <div className={`text-white text-6xl md:text-[8rem] lg:text-[10rem] font-bold py-16 px-24 rounded-[3rem] shadow-2xl ${dance.color} total-black`}>
+                                                {dance.name}
+                                            </div>
+                                            {idx < activeDances.length - 1 && <div className="text-slate-200 text-8xl font-light">&</div>}
+                                        </React.Fragment>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="opacity-10 text-slate-900 text-8xl font-black uppercase total-black">Bereit für Musik</div>
+                        )}
+                        <button 
+                            onClick={() => setView('selection')} 
+                            className="absolute bottom-6 left-1/2 -translate-x-1/2 text-slate-300 hover:text-slate-500 text-[10px] uppercase tracking-widest bg-slate-50 px-6 py-3 rounded-full border shadow-sm transition-colors"
+                        >
+                            Zur Eingabe wechseln
+                        </button>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="p-4 md:p-6 max-w-7xl mx-auto app-container">
+                    <header className="mb-8 flex flex-wrap justify-between items-center bg-white p-6 rounded-3xl shadow-sm border border-slate-200 gap-4">
+                        <h1 className="text-2xl font-black total-black">Tanz-Kompass</h1>
+                        <div className="flex gap-3">
+                            <button onClick={clearAll} className="bg-red-600 text-white px-6 py-3 rounded-2xl font-bold shadow-lg hover:bg-red-700 transition-colors">Neuer Tanz</button>
+                            <button onClick={() => setView('display')} className="bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold shadow-md hover:bg-slate-800 transition-colors">Monitor öffnen</button>
+                        </div>
+                    </header>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        {['Latein', 'Standard', 'Sonstige'].map(cat => (
+                            <div key={cat} className="space-y-4">
+                                <h2 className="text-xs font-bold uppercase text-slate-400 pl-2 tracking-widest total-black">{cat}</h2>
+                                {DANCE_STYLES.filter(d => d.category === cat).map(dance => {
+                                    const isSelected = activeDances.find(ad => ad.id === dance.id);
+                                    return (
+                                        <button 
+                                            key={dance.id} 
+                                            onClick={() => toggleDance(dance)} 
+                                            className={`p-5 rounded-2xl text-left border-2 w-full transition-all ${isSelected ? `${dance.color} text-white border-transparent scale-[1.02] shadow-md` : 'bg-white border-slate-100 hover:border-slate-300'}`}
+                                        >
+                                            <h3 className="font-bold">{dance.name}</h3>
+                                        </button>
+                                    );
+                                })}
+                                {cat === 'Sonstige' && (
+                                    <button 
+                                        onClick={() => toggleDance({ id: 'pause', name: 'Pause', category: 'Pause', color: 'bg-slate-500' })} 
+                                        className={`p-5 rounded-2xl text-left border-2 w-full mt-4 transition-all ${activeDances.find(ad => ad.id === 'pause') ? 'bg-slate-500 text-white border-transparent shadow-md' : 'bg-white border-slate-100 hover:border-slate-300'}`}
+                                    >
+                                        <div className="flex justify-between items-center">
+                                            <h3 className="font-bold">Pause</h3>
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg>
+                                        </div>
+                                    </button>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<TanzKompass />);
+    </script>
+</body>
+</html>
