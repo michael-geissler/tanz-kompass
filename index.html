@@ -16,7 +16,7 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-    <!-- Firebase Compat (Stabilere Version für einzelne HTML Dateien) -->
+    <!-- Firebase Compat -->
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
@@ -65,6 +65,7 @@
         if (typeof __firebase_config !== 'undefined' && __firebase_config) {
             firebaseConfig = JSON.parse(__firebase_config);
         } else {
+            // Deine persönlichen Daten von Firebase
             firebaseConfig = {
                 apiKey: "AIzaSyB3Z3zLftB1DhVmuz4ThRBAND5JL_fA8BI",
                 authDomain: "tanz-kompass.firebaseapp.com",
@@ -76,10 +77,11 @@
             };
         }
 
-        // Initialisierung (Compat Style)
+        // Initialisierung
         const app = firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.firestore();
+        // Fallback für App-ID
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'tanz-kompass-prod'; 
 
         function TanzKompass() {
@@ -99,7 +101,7 @@
                         }
                     } catch (err) {
                         console.error("Auth Fehler:", err);
-                        setStatus('Auth-Fehler');
+                        setStatus('Auth-Fehler: ' + err.code);
                     }
                 };
                 initAuth();
@@ -113,14 +115,16 @@
 
             useEffect(() => {
                 if (!user) return;
+                // Pfad für die Synchronisation
                 const docRef = db.doc(`artifacts/${appId}/public/data/status/current`);
                 const unsubscribe = docRef.onSnapshot((docSnap) => {
                     if (docSnap.exists) {
                         setActiveDances(docSnap.data().activeDances || []);
+                        setStatus('Verbunden (Synchronisiert)');
                     }
                 }, (err) => {
-                    console.error("Firestore Error:", err);
-                    setStatus('DB-Fehler');
+                    console.error("Firestore Read Error:", err);
+                    setStatus('DB-Lesefehler: ' + err.code);
                 });
                 return () => unsubscribe();
             }, [user]);
@@ -134,8 +138,12 @@
                         updatedAt: Date.now(),
                         userId: user.uid 
                     });
+                    setStatus('Verbunden');
                 } catch (err) {
-                    console.error("Firestore Update Fehler:", err);
+                    console.error("Firestore Write Fehler:", err);
+                    setStatus('DB-Schreibfehler: ' + err.code);
+                    // Falls der Schreibvorgang scheitert, laden wir die alten Daten wieder
+                    // um die UI synchron zum Server zu halten.
                 }
             };
 
@@ -153,10 +161,15 @@
                         newSelection.push(dance);
                     }
                 }
+                
+                // Optimistisches Update: UI sofort aktualisieren
+                setActiveDances(newSelection);
+                // Dann Datenbank benachrichtigen
                 updateFirestore(newSelection);
             };
 
             const clearAll = () => {
+                setActiveDances([]);
                 updateFirestore([]);
             };
 
@@ -223,7 +236,7 @@
                     <header className="mb-8 flex flex-wrap justify-between items-center bg-white p-6 rounded-3xl shadow-sm border border-slate-200 gap-4">
                         <h1 className="text-2xl font-black total-black text-slate-800 tracking-tight">Tanz-Kompass</h1>
                         <div className="flex gap-4">
-                            <button onClick={clearAll} className="bg-red-600 text-white px-8 py-3 rounded-2xl font-bold shadow-lg shadow-red-100 hover:bg-red-700 transition-all active:scale-95">Neuer Tanz</button>
+                            <button onClick={clearAll} className="bg-red-600 text-white px-8 py-3 rounded-2xl font-bold shadow-lg hover:bg-red-700 transition-all active:scale-95">Neuer Tanz</button>
                             <button onClick={() => setView('display')} className="bg-slate-900 text-white px-8 py-3 rounded-2xl font-bold shadow-md hover:bg-slate-800 transition-all active:scale-95">Monitor öffnen</button>
                         </div>
                     </header>
@@ -236,7 +249,11 @@
                                     {DANCE_STYLES.filter(d => d.category === cat).map(dance => {
                                         const isSelected = activeDances.find(ad => ad.id === dance.id);
                                         return (
-                                            <button key={dance.id} onClick={() => toggleDance(dance)} className={`p-5 rounded-2xl text-left border-2 w-full transition-all ${isSelected ? `${dance.color} text-white border-transparent scale-[1.02] shadow-md` : 'bg-white border-slate-100 hover:border-slate-300'}`}>
+                                            <button 
+                                                key={dance.id} 
+                                                onClick={() => toggleDance(dance)} 
+                                                className={`p-5 rounded-2xl text-left border-2 w-full transition-all ${isSelected ? `${dance.color} text-white border-transparent scale-[1.02] shadow-md` : 'bg-white border-slate-100 hover:border-slate-300'}`}
+                                            >
                                                 <h3 className="font-bold text-lg">{dance.name}</h3>
                                             </button>
                                         );
@@ -254,8 +271,9 @@
                         ))}
                     </main>
                     
-                    <div className="fixed bottom-4 right-4 text-[10px] text-slate-300 bg-white/50 px-2 py-1 rounded">
-                        Status: {status}
+                    {/* Statusanzeige mit Fehlercodes */}
+                    <div className="fixed bottom-4 right-4 text-[10px] text-slate-400 bg-white/80 backdrop-blur px-3 py-1 rounded-full border border-slate-200 shadow-sm z-50">
+                        Status: <span className={status.includes('Fehler') ? 'text-red-500' : 'text-emerald-500'}>{status}</span>
                     </div>
 
                     <footer className="max-w-7xl mx-auto mt-16 text-center text-slate-400 text-[10px] uppercase tracking-[0.2em] border-t border-slate-200 pt-8">
