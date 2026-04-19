@@ -8,16 +8,15 @@
     <!-- Adobe Fonts Integration -->
     <link rel="stylesheet" href="https://use.typekit.net/ptq2kts.css">
     
-    <!-- Tailwind CSS für modernes Styling -->
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- React & Babel für die Ausführung im Browser -->
+    <!-- React & Babel -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <style>
-        /* Zuweisung deiner Adobe Fonts */
         body {
             font-family: "stevie-sans", sans-serif;
             background-color: #f8fafc;
@@ -59,11 +58,12 @@
         import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
         // --- FIREBASE KONFIGURATION ---
-        // Dynamische Auswahl der Config: Nutzt System-Daten in der Vorschau und deine Daten auf GitHub.
         let firebaseConfig;
         if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+            // Nutzung der System-Config in der Vorschau
             firebaseConfig = JSON.parse(__firebase_config);
         } else {
+            // Nutzung deiner persönlichen Daten auf GitHub
             firebaseConfig = {
                 apiKey: "AIzaSyB3Z3zLftB1DhVmuz4ThRBAND5JL_fA8BI",
                 authDomain: "tanz-kompass.firebaseapp.com",
@@ -75,11 +75,10 @@
             };
         }
 
-        // Firebase Initialisierung
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : "tanz-kompass-prod"; 
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'tanz-kompass-prod'; 
 
         const { useState, useEffect } = React;
 
@@ -89,7 +88,7 @@
             const [activeDances, setActiveDances] = useState([]);
             const [isLoading, setIsLoading] = useState(true);
 
-            // Anmeldung mit Fehlerbehandlung und Custom-Token Unterstützung
+            // 1. Authentifizierung
             useEffect(() => {
                 const initAuth = async () => {
                     try {
@@ -99,7 +98,7 @@
                             await signInAnonymously(auth);
                         }
                     } catch (err) {
-                        console.error("Anmeldefehler:", err);
+                        console.error("Auth Fehler:", err);
                     }
                 };
                 initAuth();
@@ -110,9 +109,10 @@
                 return () => unsubscribe();
             }, []);
 
-            // Echtzeit-Datenabgleich (Regel 1: 6 Segmente im Pfad)
+            // 2. Echtzeit-Synchronisation via Firestore
             useEffect(() => {
                 if (!user) return;
+                // Pfadregel beachten: 6 Segmente
                 const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'status', 'current');
                 const unsubscribe = onSnapshot(docRef, (docSnap) => {
                     if (docSnap.exists()) {
@@ -122,9 +122,21 @@
                 return () => unsubscribe();
             }, [user]);
 
-            // Tanz-Auswahl umschalten
-            const toggleDance = async (dance) => {
+            const updateFirestore = async (newList) => {
                 if (!user) return;
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'status', 'current');
+                try {
+                    await setDoc(docRef, { 
+                        activeDances: newList, 
+                        updatedAt: Date.now(),
+                        userId: user.uid 
+                    });
+                } catch (err) {
+                    console.error("Firestore Update Fehler:", err);
+                }
+            };
+
+            const toggleDance = (dance) => {
                 let newSelection = [...activeDances];
                 const isSelected = newSelection.find(d => d.id === dance.id);
                 
@@ -138,16 +150,11 @@
                         newSelection.push(dance);
                     }
                 }
-                
-                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'status', 'current');
-                await setDoc(docRef, { activeDances: newSelection, updatedAt: Date.now() });
+                updateFirestore(newSelection);
             };
 
-            // Alles zurücksetzen
-            const clearAll = async () => {
-                if (!user) return;
-                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'status', 'current');
-                await setDoc(docRef, { activeDances: [], updatedAt: Date.now() });
+            const clearAll = () => {
+                updateFirestore([]);
             };
 
             const DANCE_STYLES = [
@@ -178,39 +185,30 @@
                 return (
                     <div className="min-h-screen bg-white flex flex-col items-center justify-center relative p-8 app-container overflow-hidden">
                         <div className="absolute top-10 text-center w-full z-20">
-                            <h1 className="text-slate-100 text-2xl md:text-3xl font-black uppercase monitor-header-text">
-                                Tanz-Kompass
-                            </h1>
+                            <h1 className="text-slate-100 text-2xl md:text-3xl font-black uppercase monitor-header-text">Tanz-Kompass</h1>
                         </div>
 
                         {activeDances.length > 0 ? (
-                            <div className="text-center w-full max-w-7xl">
+                            <div className="text-center w-full max-w-7xl animate-in fade-in zoom-in duration-700">
                                 <h2 className="text-slate-400 text-2xl md:text-3xl font-light mb-12 uppercase display-label">
                                     {activeDances.some(d => d.id === 'pause') ? 'Status' : 'Aktueller Tanz'}
                                 </h2>
-                                <div className="flex flex-wrap justify-center items-center gap-8 md:gap-12 animate-in fade-in zoom-in duration-700">
+                                <div className="flex flex-wrap justify-center items-center gap-8 md:gap-12">
                                     {activeDances.map((dance, idx) => (
                                         <React.Fragment key={dance.id}>
                                             <div className={`text-white text-5xl md:text-[7rem] lg:text-[10rem] font-bold py-10 px-16 md:py-16 md:px-24 rounded-[3.5rem] shadow-2xl ${dance.color} transition-all duration-1000 transform total-black`}>
                                                 {dance.name}
                                             </div>
-                                            {idx < activeDances.length - 1 && (
-                                                <div className="text-slate-200 text-5xl md:text-[8rem] font-light">&</div>
-                                            )}
+                                            {idx < activeDances.length - 1 && <div className="text-slate-200 text-5xl md:text-[8rem] font-light">&</div>}
                                         </React.Fragment>
                                     ))}
                                 </div>
                             </div>
                         ) : (
-                            <div className="opacity-10 text-slate-900 text-6xl md:text-8xl font-black uppercase tracking-tighter text-center total-black">
-                                Bereit für Musik
-                            </div>
+                            <div className="opacity-10 text-slate-900 text-6xl md:text-8xl font-black uppercase tracking-tighter text-center total-black">Bereit für Musik</div>
                         )}
                         
-                        <button 
-                            onClick={() => setView('selection')} 
-                            className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 text-slate-300 hover:text-slate-600 transition-colors text-[10px] uppercase tracking-widest bg-slate-50/50 hover:bg-slate-50 px-8 py-3 rounded-full border border-slate-100 shadow-sm"
-                        >
+                        <button onClick={() => setView('selection')} className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 text-slate-300 hover:text-slate-600 transition-colors text-[10px] uppercase tracking-widest bg-slate-50/50 hover:bg-slate-50 px-8 py-3 rounded-full border border-slate-100 shadow-sm">
                             <span>Zur Eingabe wechseln</span>
                         </button>
                     </div>
@@ -220,101 +218,45 @@
             return (
                 <div className="p-4 md:p-6 max-w-7xl mx-auto app-container">
                     <header className="mb-8 flex flex-wrap justify-between items-center bg-white p-6 rounded-3xl shadow-sm border border-slate-200 gap-4">
-                        <h1 className="text-2xl font-black total-black text-slate-800 tracking-tight text-center">Tanz-Kompass</h1>
+                        <h1 className="text-2xl font-black total-black text-slate-800 tracking-tight">Tanz-Kompass</h1>
                         <div className="flex gap-4">
-                            <button 
-                                onClick={clearAll} 
-                                className="bg-red-600 text-white px-8 py-3 rounded-2xl font-bold shadow-lg shadow-red-100 hover:bg-red-700 transition-all active:scale-95"
-                            >
-                                Neuer Tanz
-                            </button>
-                            <button 
-                                onClick={() => setView('display')} 
-                                className="bg-slate-900 text-white px-8 py-3 rounded-2xl font-bold shadow-md hover:bg-slate-800 transition-all active:scale-95"
-                            >
-                                Monitor öffnen
-                            </button>
+                            <button onClick={clearAll} className="bg-red-600 text-white px-8 py-3 rounded-2xl font-bold shadow-lg hover:bg-red-700 transition-all active:scale-95">Neuer Tanz</button>
+                            <button onClick={() => setView('display')} className="bg-slate-900 text-white px-8 py-3 rounded-2xl font-bold shadow-md hover:bg-slate-800 transition-all active:scale-95">Monitor öffnen</button>
                         </div>
                     </header>
 
                     <main className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
-                        {/* LATEIN SPALTE */}
-                        <div className="space-y-4">
-                            <h2 className="category-header text-slate-400 pl-2 uppercase">Latein</h2>
-                            <div className="grid grid-cols-1 gap-3">
-                                {DANCE_STYLES.filter(d => d.category === 'Latein').map(dance => {
-                                    const isSelected = activeDances.find(ad => ad.id === dance.id);
-                                    return (
-                                        <button 
-                                            key={dance.id} 
-                                            onClick={() => toggleDance(dance)} 
-                                            className={`p-5 rounded-2xl text-left border-2 w-full transition-all ${isSelected ? `${dance.color} text-white border-transparent scale-[1.02] shadow-md` : 'bg-white border-slate-100 hover:border-slate-300'}`}
-                                        >
-                                            <h3 className="font-bold text-lg">{dance.name}</h3>
+                        {['Latein', 'Standard', 'Sonstige'].map(cat => (
+                            <div key={cat} className="space-y-4">
+                                <h2 className="category-header text-slate-400 pl-2 uppercase">{cat}</h2>
+                                <div className="grid grid-cols-1 gap-3">
+                                    {DANCE_STYLES.filter(d => d.category === cat).map(dance => {
+                                        const isSelected = activeDances.find(ad => ad.id === dance.id);
+                                        return (
+                                            <button key={dance.id} onClick={() => toggleDance(dance)} className={`p-5 rounded-2xl text-left border-2 w-full transition-all ${isSelected ? `${dance.color} text-white border-transparent scale-[1.02] shadow-md` : 'bg-white border-slate-100 hover:border-slate-300'}`}>
+                                                <h3 className="font-bold text-lg">{dance.name}</h3>
+                                            </button>
+                                        );
+                                    })}
+                                    {cat === 'Sonstige' && (
+                                        <button onClick={() => toggleDance({ id: 'pause', name: 'Pause', category: 'Pause', color: 'bg-slate-500' })} className={`p-5 rounded-2xl text-left border-2 w-full mt-6 transition-all ${activeDances.find(ad => ad.id === 'pause') ? 'bg-slate-500 text-white border-transparent shadow-md' : 'bg-white border-slate-100 hover:border-slate-300'}`}>
+                                            <div className="flex justify-between items-center font-bold text-lg">
+                                                <span>Pause</span>
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg>
+                                            </div>
                                         </button>
-                                    );
-                                })}
+                                    )}
+                                </div>
                             </div>
-                        </div>
-
-                        {/* STANDARD SPALTE */}
-                        <div className="space-y-4">
-                            <h2 className="category-header text-slate-400 pl-2 uppercase">Standard</h2>
-                            <div className="grid grid-cols-1 gap-3">
-                                {DANCE_STYLES.filter(d => d.category === 'Standard').map(dance => {
-                                    const isSelected = activeDances.find(ad => ad.id === dance.id);
-                                    return (
-                                        <button 
-                                            key={dance.id} 
-                                            onClick={() => toggleDance(dance)} 
-                                            className={`p-5 rounded-2xl text-left border-2 w-full transition-all ${isSelected ? `${dance.color} text-white border-transparent scale-[1.02] shadow-md` : 'bg-white border-slate-100 hover:border-slate-300'}`}
-                                        >
-                                            <h3 className="font-bold text-lg">{dance.name}</h3>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-
-                        {/* SONSTIGE SPALTE */}
-                        <div className="space-y-4">
-                            <h2 className="category-header text-slate-400 pl-2 uppercase">Sonstige</h2>
-                            <div className="grid grid-cols-1 gap-3">
-                                {DANCE_STYLES.filter(d => d.category === 'Sonstige').map(dance => {
-                                    const isSelected = activeDances.find(ad => ad.id === dance.id);
-                                    return (
-                                        <button 
-                                            key={dance.id} 
-                                            onClick={() => toggleDance(dance)} 
-                                            className={`p-5 rounded-2xl text-left border-2 w-full transition-all ${isSelected ? `${dance.color} text-white border-transparent scale-[1.02] shadow-md` : 'bg-white border-slate-100 hover:border-slate-300'}`}
-                                        >
-                                            <h3 className="font-bold text-lg">{dance.name}</h3>
-                                        </button>
-                                    );
-                                })}
-                                
-                                {/* Pause Button */}
-                                <button 
-                                    onClick={() => toggleDance({ id: 'pause', name: 'Pause', category: 'Pause', color: 'bg-slate-500' })} 
-                                    className={`p-5 rounded-2xl text-left border-2 w-full mt-6 transition-all ${activeDances.find(ad => ad.id === 'pause') ? 'bg-slate-500 text-white border-transparent shadow-md' : 'bg-white border-slate-100 hover:border-slate-300'}`}
-                                >
-                                    <div className="flex justify-between items-center">
-                                        <h3 className="font-bold text-lg">Pause</h3>
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg>
-                                    </div>
-                                </button>
-                            </div>
-                        </div>
+                        ))}
                     </main>
-
                     <footer className="max-w-7xl mx-auto mt-16 text-center text-slate-400 text-[10px] uppercase tracking-[0.2em] border-t border-slate-200 pt-8">
-                        Tanz-Kompass &copy; 2024 | Echtzeit-Anzeige aktiv
+                        Tanz-Kompass &copy; 2024 | Firebase Cloud Synchronisation aktiv
                     </footer>
                 </div>
             );
         }
 
-        // App Initialisierung
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<TanzKompass />);
     </script>
