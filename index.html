@@ -16,7 +16,7 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-    <!-- Firebase Compat SDKs -->
+    <!-- Firebase Compat SDKs (Die stabilste Wahl für diese Integration) -->
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
@@ -48,33 +48,23 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        // --- DYNAMISCHE FIREBASE KONFIGURATION ---
-        let firebaseConfig;
-        
-        // Prüfen, ob wir in der Canvas-Vorschau sind oder auf GitHub Pages
-        if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-            // Nutzung der System-Variablen in der Vorschau
-            firebaseConfig = JSON.parse(__firebase_config);
-        } else {
-            // Deine persönlichen Daten für GitHub Pages
-            firebaseConfig = {
-                apiKey: "AIzaSyB3Z3zLftB1DhVmuz4ThRBAND5JL_fA8BI",
-                authDomain: "tanz-kompass.firebaseapp.com",
-                projectId: "tanz-kompass",
-                storageBucket: "tanz-kompass.firebasestorage.app",
-                messagingSenderId: "433875226209",
-                appId: "1:433875226209:web:626ae485666d70a14da420",
-                measurementId: "G-R8GP3VCXSC"
-            };
-        }
+        // --- DEINE PRIVATEN FIREBASE DATEN (Fest eingebaut) ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyB3Z3zLftB1DhVmuz4ThRBAND5JL_fA8BI",
+            authDomain: "tanz-kompass.firebaseapp.com",
+            projectId: "tanz-kompass",
+            storageBucket: "tanz-kompass.firebasestorage.app",
+            messagingSenderId: "433875226209",
+            appId: "1:433875226209:web:626ae485666d70a14da420",
+            measurementId: "G-R8GP3VCXSC"
+        };
 
         // Initialisierung
-        firebase.initializeApp(firebaseConfig);
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
         const auth = firebase.auth();
         const db = firebase.firestore();
-
-        // App ID für den Speicherpfad
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'tanz-kompass-prod';
 
         function TanzKompass() {
             const [user, setUser] = useState(null);
@@ -83,58 +73,40 @@
             const [status, setStatus] = useState('Verbinde...');
 
             useEffect(() => {
-                // Anmeldung
-                const initAuth = async () => {
-                    try {
-                        // Prüfen auf initialen Token in der Vorschau
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            await auth.signInWithCustomToken(__initial_auth_token);
-                        } else {
-                            await auth.signInAnonymously();
-                        }
-                        setStatus('Verbunden');
-                    } catch (err) {
-                        console.error("Auth Fehler:", err);
-                        setStatus('Auth-Fehler: ' + err.code);
-                    }
-                };
+                // Anonyme Anmeldung
+                auth.signInAnonymously()
+                    .then(() => setStatus('Verbunden'))
+                    .catch(err => setStatus('Auth-Fehler: ' + err.code));
 
-                initAuth();
                 const unsubscribeAuth = auth.onAuthStateChanged(u => setUser(u));
                 return () => unsubscribeAuth();
             }, []);
 
             useEffect(() => {
                 if (!user) return;
-                
-                // Pfad für die Synchronisation (6 Segmente für artifacts-Struktur)
-                const docRef = db.doc(`artifacts/${appId}/public/data/status/current`);
+                // Einfacher Pfad für deine eigene Datenbank
+                const docRef = db.collection('tanz-daten').doc('status');
                 
                 const unsubscribeSnap = docRef.onSnapshot(doc => {
                     if (doc.exists) {
                         setActiveDances(doc.data().activeDances || []);
-                        setStatus('Verbunden (Synchronisiert)');
+                        setStatus('Verbunden (Echtzeit)');
                     }
-                }, err => {
-                    console.error("DB Fehler:", err);
-                    setStatus('DB-Fehler: ' + err.code);
-                });
+                }, err => setStatus('DB-Fehler: ' + err.code));
                 
                 return () => unsubscribeSnap();
             }, [user]);
 
             const updateTanz = async (newList) => {
                 if (!user) return;
-                const docRef = db.doc(`artifacts/${appId}/public/data/status/current`);
+                const docRef = db.collection('tanz-daten').doc('status');
                 try {
                     await docRef.set({
                         activeDances: newList,
-                        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                        userId: user.uid
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                     });
                 } catch (err) {
-                    console.error("Speicher Fehler:", err);
-                    setStatus('Speicher-Fehler: ' + err.code);
+                    setStatus('Schreib-Fehler: ' + err.code);
                 }
             };
 
@@ -153,36 +125,40 @@
                     }
                 }
                 
-                setActiveDances(newSelection); // Sofortige lokale Anzeige
-                updateTanz(newSelection);      // Speichern in Cloud
+                setActiveDances(newSelection); 
+                updateTanz(newSelection);
             };
 
             const DANCE_STYLES = [
-                { id: 'ccc', name: 'Cha Cha Cha', category: 'Latein', color: 'bg-rose-600' },
-                { id: 'rumba', name: 'Rumba', category: 'Latein', color: 'bg-red-700' },
-                { id: 'samba', name: 'Samba', category: 'Latein', color: 'bg-amber-500' },
-                { id: 'jive', name: 'Jive', category: 'Latein', color: 'bg-orange-600' },
-                { id: 'pasodoble', name: 'Paso Doble', category: 'Latein', color: 'bg-red-900' },
-                { id: 'walzer', name: 'Langsamer Walzer', category: 'Standard', color: 'bg-blue-700' },
-                { id: 'tango', name: 'Tango', category: 'Standard', color: 'bg-stone-900' },
-                { id: 'wwalzer', name: 'Wiener Walzer', category: 'Standard', color: 'bg-cyan-600' },
-                { id: 'quickstep', name: 'Quickstep', category: 'Standard', color: 'bg-emerald-600' },
-                { id: 'slowfox', name: 'Slowfox', category: 'Standard', color: 'bg-teal-700' },
-                { id: 'discofox', name: 'Discofox', category: 'Sonstige', color: 'bg-indigo-600' },
-                { id: 'salsa', name: 'Salsa', category: 'Sonstige', color: 'bg-red-500' },
-                { id: 'bachata', name: 'Bachata', category: 'Sonstige', color: 'bg-pink-700' },
+                { id: 'ccc', name: 'Cha Cha Cha', category: 'Latein', hex: '#e11d48' },
+                { id: 'rumba', name: 'Rumba', category: 'Latein', hex: '#b91c1c' },
+                { id: 'samba', name: 'Samba', category: 'Latein', hex: '#f59e0b' },
+                { id: 'jive', name: 'Jive', category: 'Latein', hex: '#ea580c' },
+                { id: 'pasodoble', name: 'Paso Doble', category: 'Latein', hex: '#7f1d1d' },
+                { id: 'walzer', name: 'Langsamer Walzer', category: 'Standard', hex: '#1d4ed8' },
+                { id: 'tango', name: 'Tango', category: 'Standard', hex: '#1c1917' },
+                { id: 'wwalzer', name: 'Wiener Walzer', category: 'Standard', hex: '#0891b2' },
+                { id: 'quickstep', name: 'Quickstep', category: 'Standard', hex: '#059669' },
+                { id: 'slowfox', name: 'Slowfox', category: 'Standard', hex: '#0f766e' },
+                { id: 'discofox', name: 'Discofox', category: 'Sonstige', hex: '#4f46e5' },
+                { id: 'salsa', name: 'Salsa', category: 'Sonstige', hex: '#ef4444' },
+                { id: 'bachata', name: 'Bachata', category: 'Sonstige', hex: '#be185d' },
             ];
 
             if (view === 'display') {
                 return (
-                    <div className="min-h-screen bg-white flex flex-col items-center justify-center relative p-8 text-center app-container overflow-hidden">
+                    <div className="min-h-screen bg-white flex flex-col items-center justify-center relative p-8 text-center overflow-hidden">
                         <h1 className="absolute top-10 text-slate-100 text-3xl monitor-header-text uppercase">Tanz-Kompass</h1>
                         {activeDances.length > 0 ? (
-                            <div className="animate-in fade-in zoom-in duration-500 w-full max-w-7xl">
-                                <h2 className="text-slate-400 text-2xl uppercase mb-8 display-label">Aktueller Tanz</h2>
+                            <div className="w-full max-w-7xl animate-in fade-in zoom-in duration-500">
+                                <h2 className="text-slate-400 text-2xl uppercase mb-8">Aktueller Tanz</h2>
                                 <div className="flex flex-wrap justify-center items-center gap-10">
                                     {activeDances.map(d => (
-                                        <div key={d.id} className={`text-white text-6xl md:text-9xl font-bold py-12 px-20 rounded-[3rem] shadow-2xl ${d.color} total-black transition-all duration-500`}>
+                                        <div 
+                                            key={d.id} 
+                                            style={{ backgroundColor: d.hex }}
+                                            className="text-white text-6xl md:text-9xl font-bold py-12 px-20 rounded-[3rem] shadow-2xl total-black"
+                                        >
                                             {d.name}
                                         </div>
                                     ))}
@@ -197,10 +173,10 @@
             }
 
             return (
-                <div className="p-4 max-w-4xl mx-auto pb-20 app-container">
-                    <header className="flex justify-between items-center mb-10 bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+                <div className="p-4 max-w-4xl mx-auto pb-20">
+                    <header className="flex justify-between items-center mb-10 bg-white p-6 rounded-3xl shadow-sm border">
                         <h1 className="text-2xl font-black total-black">Tanz-Kompass</h1>
-                        <button onClick={() => setView('display')} className="bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold hover:bg-slate-800 transition-all shadow-md">Monitor</button>
+                        <button onClick={() => setView('display')} className="bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold">Monitor</button>
                     </header>
                     <div className="space-y-10">
                         {['Latein', 'Standard', 'Sonstige'].map(cat => (
@@ -213,7 +189,12 @@
                                             <button 
                                                 key={dance.id} 
                                                 onClick={() => toggleDance(dance)}
-                                                className={`p-6 rounded-[2rem] text-left border-4 transition-all duration-200 ${active ? `${dance.color} border-white text-white shadow-xl scale-[1.02] ring-4 ring-offset-2 ring-slate-100` : 'bg-white border-slate-50 text-slate-700 hover:border-slate-200 shadow-sm'}`}
+                                                style={{ 
+                                                    backgroundColor: active ? dance.hex : 'white',
+                                                    color: active ? 'white' : '#334155',
+                                                    borderColor: active ? 'white' : '#f1f5f9'
+                                                }}
+                                                className={`p-6 rounded-[2rem] text-left border-4 transition-all duration-200 ${active ? 'shadow-xl scale-[1.02] ring-4 ring-offset-2 ring-slate-100' : 'shadow-sm'}`}
                                             >
                                                 <span className="text-xl font-bold">{dance.name}</span>
                                             </button>
@@ -221,8 +202,13 @@
                                     })}
                                     {cat === 'Sonstige' && (
                                         <button 
-                                            onClick={() => toggleDance({ id: 'pause', name: 'Pause', category: 'Pause', color: 'bg-slate-500' })} 
-                                            className={`p-6 rounded-[2rem] text-left border-4 transition-all duration-200 mt-4 ${activeDances.some(ad => ad.id === 'pause') ? 'bg-slate-500 border-white text-white shadow-xl scale-[1.02] ring-4 ring-offset-2 ring-slate-100' : 'bg-white border-slate-50 text-slate-700 hover:border-slate-200 shadow-sm'}`}
+                                            onClick={() => toggleDance({ id: 'pause', name: 'Pause', category: 'Pause', hex: '#64748b' })} 
+                                            style={{ 
+                                                backgroundColor: activeDances.some(ad => ad.id === 'pause') ? '#64748b' : 'white',
+                                                color: activeDances.some(ad => ad.id === 'pause') ? 'white' : '#334155',
+                                                borderColor: activeDances.some(ad => ad.id === 'pause') ? 'white' : '#f1f5f9'
+                                            }}
+                                            className={`p-6 rounded-[2rem] text-left border-4 transition-all duration-200 mt-4 ${activeDances.some(ad => ad.id === 'pause') ? 'shadow-xl scale-[1.02] ring-4 ring-offset-2 ring-slate-100' : 'shadow-sm'}`}
                                         >
                                             <div className="flex justify-between items-center font-bold text-xl">
                                                 <span>Pause</span>
