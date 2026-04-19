@@ -57,13 +57,11 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
-        // --- FIREBASE KONFIGURATION ---
+        // --- FIREBASE KONFIGURATION (Deine Live-Daten) ---
         let firebaseConfig;
         if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-            // Nutzung der System-Config in der Vorschau
             firebaseConfig = JSON.parse(__firebase_config);
         } else {
-            // Nutzung deiner persönlichen Daten auf GitHub
             firebaseConfig = {
                 apiKey: "AIzaSyB3Z3zLftB1DhVmuz4ThRBAND5JL_fA8BI",
                 authDomain: "tanz-kompass.firebaseapp.com",
@@ -88,7 +86,6 @@
             const [activeDances, setActiveDances] = useState([]);
             const [isLoading, setIsLoading] = useState(true);
 
-            // 1. Authentifizierung
             useEffect(() => {
                 const initAuth = async () => {
                     try {
@@ -109,16 +106,14 @@
                 return () => unsubscribe();
             }, []);
 
-            // 2. Echtzeit-Synchronisation via Firestore
             useEffect(() => {
                 if (!user) return;
-                // Pfadregel beachten: 6 Segmente
                 const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'status', 'current');
                 const unsubscribe = onSnapshot(docRef, (docSnap) => {
                     if (docSnap.exists()) {
                         setActiveDances(docSnap.data().activeDances || []);
                     }
-                }, (err) => console.log("Verbindung wird aufgebaut..."));
+                }, (err) => console.log("Warte auf Datenbank-Inhalt..."));
                 return () => unsubscribe();
             }, [user]);
 
@@ -220,7 +215,7 @@
                     <header className="mb-8 flex flex-wrap justify-between items-center bg-white p-6 rounded-3xl shadow-sm border border-slate-200 gap-4">
                         <h1 className="text-2xl font-black total-black text-slate-800 tracking-tight">Tanz-Kompass</h1>
                         <div className="flex gap-4">
-                            <button onClick={clearAll} className="bg-red-600 text-white px-8 py-3 rounded-2xl font-bold shadow-lg hover:bg-red-700 transition-all active:scale-95">Neuer Tanz</button>
+                            <button onClick={clearAll} className="bg-red-600 text-white px-8 py-3 rounded-2xl font-bold shadow-lg shadow-red-100 hover:bg-red-700 transition-all active:scale-95">Neuer Tanz</button>
                             <button onClick={() => setView('display')} className="bg-slate-900 text-white px-8 py-3 rounded-2xl font-bold shadow-md hover:bg-slate-800 transition-all active:scale-95">Monitor öffnen</button>
                         </div>
                     </header>
