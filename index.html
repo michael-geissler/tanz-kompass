@@ -59,16 +59,26 @@
     }
 
     .display {
-      font-size: 72px;
+      width: 100%;
+      font-size: 96px;
       font-weight: 800;
       text-align: center;
-      line-height: 1.1;
+      line-height: 1.05;
       word-break: break-word;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .display-line {
+      display: block;
     }
 
     .hint {
       opacity: 0.5;
-      font-size: 28px;
+      font-size: 34px;
       text-align: center;
     }
 
@@ -107,7 +117,9 @@
         display.textContent = "Wähle einen Tanz";
       } else {
         display.className = "display";
-        display.textContent = selected.join(" + ");
+        display.innerHTML = selected
+          .map(dance => `<div class="display-line">${dance}</div>`)
+          .join("");
       }
     }
 
