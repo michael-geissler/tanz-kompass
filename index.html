@@ -16,6 +16,11 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
+    <!-- Firebase Compat (Stabilere Version für einzelne HTML Dateien) -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+
     <style>
         body {
             font-family: "stevie-sans", sans-serif;
@@ -52,12 +57,10 @@
 <body>
     <div id="root"></div>
 
-    <script type="text/babel" data-type="module" data-presets="react">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+    <script type="text/babel">
+        const { useState, useEffect } = React;
 
-        // --- FIREBASE KONFIGURATION (Deine Live-Daten) ---
+        // --- FIREBASE KONFIGURATION ---
         let firebaseConfig;
         if (typeof __firebase_config !== 'undefined' && __firebase_config) {
             firebaseConfig = JSON.parse(__firebase_config);
@@ -73,55 +76,60 @@
             };
         }
 
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
+        // Initialisierung (Compat Style)
+        const app = firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'tanz-kompass-prod'; 
-
-        const { useState, useEffect } = React;
 
         function TanzKompass() {
             const [user, setUser] = useState(null);
             const [view, setView] = useState('selection');
             const [activeDances, setActiveDances] = useState([]);
             const [isLoading, setIsLoading] = useState(true);
+            const [status, setStatus] = useState('Verbinde...');
 
             useEffect(() => {
                 const initAuth = async () => {
                     try {
                         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            await signInWithCustomToken(auth, __initial_auth_token);
+                            await auth.signInWithCustomToken(__initial_auth_token);
                         } else {
-                            await signInAnonymously(auth);
+                            await auth.signInAnonymously();
                         }
                     } catch (err) {
                         console.error("Auth Fehler:", err);
+                        setStatus('Auth-Fehler');
                     }
                 };
                 initAuth();
-                const unsubscribe = onAuthStateChanged(auth, (u) => {
+                const unsubscribe = auth.onAuthStateChanged((u) => {
                     setUser(u);
                     setIsLoading(false);
+                    if(u) setStatus('Verbunden');
                 });
                 return () => unsubscribe();
             }, []);
 
             useEffect(() => {
                 if (!user) return;
-                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'status', 'current');
-                const unsubscribe = onSnapshot(docRef, (docSnap) => {
-                    if (docSnap.exists()) {
+                const docRef = db.doc(`artifacts/${appId}/public/data/status/current`);
+                const unsubscribe = docRef.onSnapshot((docSnap) => {
+                    if (docSnap.exists) {
                         setActiveDances(docSnap.data().activeDances || []);
                     }
-                }, (err) => console.log("Warte auf Datenbank-Inhalt..."));
+                }, (err) => {
+                    console.error("Firestore Error:", err);
+                    setStatus('DB-Fehler');
+                });
                 return () => unsubscribe();
             }, [user]);
 
             const updateFirestore = async (newList) => {
                 if (!user) return;
-                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'status', 'current');
+                const docRef = db.doc(`artifacts/${appId}/public/data/status/current`);
                 try {
-                    await setDoc(docRef, { 
+                    await docRef.set({ 
                         activeDances: newList, 
                         updatedAt: Date.now(),
                         userId: user.uid 
@@ -245,8 +253,13 @@
                             </div>
                         ))}
                     </main>
+                    
+                    <div className="fixed bottom-4 right-4 text-[10px] text-slate-300 bg-white/50 px-2 py-1 rounded">
+                        Status: {status}
+                    </div>
+
                     <footer className="max-w-7xl mx-auto mt-16 text-center text-slate-400 text-[10px] uppercase tracking-[0.2em] border-t border-slate-200 pt-8">
-                        Tanz-Kompass &copy; 2024 | Firebase Cloud Synchronisation aktiv
+                        Tanz-Kompass &copy; 2024
                     </footer>
                 </div>
             );
