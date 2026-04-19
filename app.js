@@ -41,6 +41,20 @@ function normalizeDisplayText(text) {
   return (text || '').trim();
 }
 
+function humanizeError(error) {
+  const message = error?.message || '';
+  if (message.toLowerCase().includes('row-level security')) {
+    return 'Datenbank blockiert den Zugriff. In Supabase fehlen noch Policies für SELECT und UPDATE/INSERT auf state.';
+  }
+  if (message.toLowerCase().includes('invalid api key')) {
+    return 'Der Publishable Key ist ungültig.';
+  }
+  if (message.toLowerCase().includes('failed to fetch')) {
+    return 'Keine Verbindung zu Supabase.';
+  }
+  return message || 'Unbekannter Fehler.';
+}
+
 async function setDance(text) {
   if (!supabase) {
     throw new Error('Supabase ist noch nicht konfiguriert.');
@@ -96,7 +110,7 @@ function renderDisplay() {
 
   const sub = document.createElement('div');
   sub.className = 'display-sub';
-  sub.textContent = 'Warte auf Auswahl';
+  sub.textContent = 'Verbinde ...';
 
   const errorBox = createStatus('', 'hidden');
 
@@ -124,9 +138,13 @@ function renderDisplay() {
     try {
       const current = await getDance();
       applyText(current);
+      errorBox.className = 'status hidden';
+      errorBox.textContent = '';
     } catch (error) {
+      applyText('');
+      sub.textContent = 'Verbindung fehlgeschlagen';
       errorBox.className = 'status error';
-      errorBox.textContent = 'Verbindung zur Datenbank fehlgeschlagen.';
+      errorBox.textContent = humanizeError(error);
     }
 
     supabase
@@ -136,9 +154,17 @@ function renderDisplay() {
         { event: '*', schema: 'public', table: 'state' },
         payload => {
           applyText(payload.new?.text || '');
+          errorBox.className = 'status hidden';
+          errorBox.textContent = '';
         }
       )
-      .subscribe();
+      .subscribe(status => {
+        if (status === 'SUBSCRIBED') {
+          if (!normalizeDisplayText(display.textContent) || display.textContent === 'TANZKOMPASS') {
+            sub.textContent = 'Warte auf Auswahl';
+          }
+        }
+      });
   }
 
   init();
@@ -207,7 +233,7 @@ function renderControl() {
           statusBox.textContent = `Gesendet: ${item}`;
         } catch (error) {
           statusBox.className = 'status error';
-          statusBox.textContent = 'Senden fehlgeschlagen. Prüfe Supabase und die Tabelle state.';
+          statusBox.textContent = humanizeError(error);
         }
       });
       grid.appendChild(btn);
@@ -232,7 +258,7 @@ function renderControl() {
       statusBox.textContent = 'Gesendet: Pause';
     } catch (error) {
       statusBox.className = 'status error';
-      statusBox.textContent = 'Senden fehlgeschlagen. Prüfe Supabase und die Tabelle state.';
+      statusBox.textContent = humanizeError(error);
     }
   }, 'btn-secondary');
 
@@ -244,7 +270,7 @@ function renderControl() {
       statusBox.textContent = 'Anzeige geleert';
     } catch (error) {
       statusBox.className = 'status error';
-      statusBox.textContent = 'Leeren fehlgeschlagen. Prüfe Supabase und die Tabelle state.';
+      statusBox.textContent = humanizeError(error);
     }
   }, 'btn-secondary');
 
@@ -259,7 +285,7 @@ function renderControl() {
       statusBox.textContent = `Gesendet: ${normalizeDisplayText(text) || 'Leer'}`;
     } catch (error) {
       statusBox.className = 'status error';
-      statusBox.textContent = 'Senden fehlgeschlagen. Prüfe Supabase und die Tabelle state.';
+      statusBox.textContent = humanizeError(error);
     }
   }, 'btn-accent');
 
@@ -268,20 +294,17 @@ function renderControl() {
   wrapper.appendChild(extraSection);
 
   async function init() {
-    if (!supabase) {
-      app.appendChild(wrapper);
-      return;
-    }
+    app.appendChild(wrapper);
+
+    if (!supabase) return;
 
     try {
       const current = await getDance();
       setCurrentLabel(current);
     } catch (error) {
       statusBox.className = 'status error';
-      statusBox.textContent = 'Lesen fehlgeschlagen. Prüfe Supabase und die Tabelle state.';
+      statusBox.textContent = humanizeError(error);
     }
-
-    app.appendChild(wrapper);
   }
 
   init();
