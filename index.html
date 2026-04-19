@@ -81,7 +81,6 @@
         const app = firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.firestore();
-        // Fallback für App-ID
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'tanz-kompass-prod'; 
 
         function TanzKompass() {
@@ -115,11 +114,11 @@
 
             useEffect(() => {
                 if (!user) return;
-                // Pfad für die Synchronisation
                 const docRef = db.doc(`artifacts/${appId}/public/data/status/current`);
                 const unsubscribe = docRef.onSnapshot((docSnap) => {
                     if (docSnap.exists) {
-                        setActiveDances(docSnap.data().activeDances || []);
+                        const data = docSnap.data();
+                        setActiveDances(data.activeDances || []);
                         setStatus('Verbunden (Synchronisiert)');
                     }
                 }, (err) => {
@@ -142,14 +141,13 @@
                 } catch (err) {
                     console.error("Firestore Write Fehler:", err);
                     setStatus('DB-Schreibfehler: ' + err.code);
-                    // Falls der Schreibvorgang scheitert, laden wir die alten Daten wieder
-                    // um die UI synchron zum Server zu halten.
                 }
             };
 
             const toggleDance = (dance) => {
+                // Wir arbeiten hier mit einer Kopie der IDs für den Vergleich
                 let newSelection = [...activeDances];
-                const isSelected = newSelection.find(d => d.id === dance.id);
+                const isSelected = newSelection.some(d => d.id === dance.id);
                 
                 if (dance.id === 'pause') {
                     newSelection = isSelected ? [] : [dance];
@@ -162,9 +160,9 @@
                     }
                 }
                 
-                // Optimistisches Update: UI sofort aktualisieren
+                // UI sofort lokal aktualisieren
                 setActiveDances(newSelection);
-                // Dann Datenbank benachrichtigen
+                // Datenbank asynchron benachrichtigen
                 updateFirestore(newSelection);
             };
 
@@ -247,19 +245,28 @@
                                 <h2 className="category-header text-slate-400 pl-2 uppercase">{cat}</h2>
                                 <div className="grid grid-cols-1 gap-3">
                                     {DANCE_STYLES.filter(d => d.category === cat).map(dance => {
-                                        const isSelected = activeDances.find(ad => ad.id === dance.id);
+                                        const isSelected = activeDances.some(ad => ad.id === dance.id);
                                         return (
                                             <button 
                                                 key={dance.id} 
                                                 onClick={() => toggleDance(dance)} 
-                                                className={`p-5 rounded-2xl text-left border-2 w-full transition-all ${isSelected ? `${dance.color} text-white border-transparent scale-[1.02] shadow-md` : 'bg-white border-slate-100 hover:border-slate-300'}`}
+                                                className={`p-5 rounded-2xl text-left border-4 w-full transition-all duration-200
+                                                    ${isSelected 
+                                                        ? `${dance.color} text-white border-white ring-4 ring-offset-2 ring-slate-200 scale-[1.02] shadow-xl` 
+                                                        : 'bg-white border-slate-50 text-slate-700 hover:border-slate-300 shadow-sm'}`}
                                             >
                                                 <h3 className="font-bold text-lg">{dance.name}</h3>
                                             </button>
                                         );
                                     })}
                                     {cat === 'Sonstige' && (
-                                        <button onClick={() => toggleDance({ id: 'pause', name: 'Pause', category: 'Pause', color: 'bg-slate-500' })} className={`p-5 rounded-2xl text-left border-2 w-full mt-6 transition-all ${activeDances.find(ad => ad.id === 'pause') ? 'bg-slate-500 text-white border-transparent shadow-md' : 'bg-white border-slate-100 hover:border-slate-300'}`}>
+                                        <button 
+                                            onClick={() => toggleDance({ id: 'pause', name: 'Pause', category: 'Pause', color: 'bg-slate-500' })} 
+                                            className={`p-5 rounded-2xl text-left border-4 w-full mt-6 transition-all duration-200
+                                                ${activeDances.some(ad => ad.id === 'pause') 
+                                                    ? 'bg-slate-500 text-white border-white ring-4 ring-offset-2 ring-slate-200 scale-[1.02] shadow-xl' 
+                                                    : 'bg-white border-slate-50 text-slate-700 hover:border-slate-300 shadow-sm'}`}
+                                        >
                                             <div className="flex justify-between items-center font-bold text-lg">
                                                 <span>Pause</span>
                                                 <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg>
@@ -271,7 +278,6 @@
                         ))}
                     </main>
                     
-                    {/* Statusanzeige mit Fehlercodes */}
                     <div className="fixed bottom-4 right-4 text-[10px] text-slate-400 bg-white/80 backdrop-blur px-3 py-1 rounded-full border border-slate-200 shadow-sm z-50">
                         Status: <span className={status.includes('Fehler') ? 'text-red-500' : 'text-emerald-500'}>{status}</span>
                     </div>
