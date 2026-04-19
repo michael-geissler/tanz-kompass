@@ -1,16 +1,166 @@
 <!DOCTYPE html>
 <html lang="de">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tanzkompass</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./styles.css" />
-  </head>
-  <body>
-    <div id="app"></div>
-    <script src="./app.js"></script>
-  </body>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tanzkompass</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #111;
+      color: white;
+    }
+
+    .app {
+      display: flex;
+      height: 100vh;
+    }
+
+    .left {
+      width: 33.33%;
+      background: #1d1d1d;
+      padding: 20px;
+      box-sizing: border-box;
+      overflow-y: auto;
+      border-right: 2px solid #333;
+    }
+
+    .right {
+      width: 66.67%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+      box-sizing: border-box;
+    }
+
+    h2 {
+      margin: 20px 0 10px;
+      font-size: 20px;
+    }
+
+    button {
+      width: 100%;
+      margin-bottom: 8px;
+      padding: 14px;
+      border: none;
+      border-radius: 8px;
+      background: #2d2d2d;
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    button.active {
+      background: #ff7a00;
+    }
+
+    .display {
+      font-size: 72px;
+      font-weight: 800;
+      text-align: center;
+      line-height: 1.1;
+      word-break: break-word;
+    }
+
+    .hint {
+      opacity: 0.5;
+      font-size: 28px;
+      text-align: center;
+    }
+
+    .top-actions {
+      margin-bottom: 20px;
+    }
+
+    .small-btn {
+      background: #444;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="left" id="left"></div>
+    <div class="right">
+      <div id="display" class="hint">Wähle einen Tanz</div>
+    </div>
+  </div>
+
+  <script>
+    const dances = {
+      "Latein": ["Samba", "Cha-Cha-Cha", "Rumba", "Paso Doble", "Jive"],
+      "Standard": ["Langsamer Walzer", "Tango", "Wiener Walzer", "Slowfox", "Quickstep"],
+      "Sonstiges": ["Discofox", "Salsa", "Bachata"]
+    };
+
+    const left = document.getElementById("left");
+    const display = document.getElementById("display");
+
+    let selected = [];
+
+    function updateDisplay() {
+      if (selected.length === 0) {
+        display.className = "hint";
+        display.textContent = "Wähle einen Tanz";
+      } else {
+        display.className = "display";
+        display.textContent = selected.join(" + ");
+      }
+    }
+
+    function render() {
+      left.innerHTML = "";
+
+      const topActions = document.createElement("div");
+      topActions.className = "top-actions";
+
+      const resetBtn = document.createElement("button");
+      resetBtn.textContent = "Auswahl löschen";
+      resetBtn.className = "small-btn";
+      resetBtn.onclick = () => {
+        selected = [];
+        render();
+        updateDisplay();
+      };
+
+      topActions.appendChild(resetBtn);
+      left.appendChild(topActions);
+
+      Object.keys(dances).forEach(category => {
+        const title = document.createElement("h2");
+        title.textContent = category;
+        left.appendChild(title);
+
+        dances[category].forEach(dance => {
+          const btn = document.createElement("button");
+          btn.textContent = dance;
+
+          if (selected.includes(dance)) {
+            btn.classList.add("active");
+          }
+
+          btn.onclick = () => {
+            if (selected.includes(dance)) {
+              selected = selected.filter(item => item !== dance);
+            } else {
+              if (selected.length < 3) {
+                selected.push(dance);
+              }
+            }
+            render();
+            updateDisplay();
+          };
+
+          left.appendChild(btn);
+        });
+      });
+    }
+
+    render();
+    updateDisplay();
+  </script>
+</body>
 </html>
