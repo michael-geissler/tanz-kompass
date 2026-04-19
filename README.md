@@ -1,2 +1,0 @@
-# tanz-kompass
-Tanz-Kompass
