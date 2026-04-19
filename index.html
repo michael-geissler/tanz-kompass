@@ -5,29 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tanzkompass</title>
   <style>
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: #111;
-      color: white;
-    }
+    body { margin: 0; font-family: Arial, sans-serif; background: #111; color: white; }
 
-    .app {
-      display: flex;
-      height: 100vh;
-    }
+    .app { display: flex; height: 100vh; }
 
     .left {
-      width: 33.33%;
+      width: 26.66%;
       background: #1d1d1d;
-      padding: 20px;
+      padding: 16px;
       box-sizing: border-box;
       overflow-y: auto;
       border-right: 2px solid #333;
     }
 
     .right {
-      width: 66.67%;
+      width: 73.34%;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -36,27 +28,25 @@
     }
 
     h2 {
-      margin: 20px 0 10px;
-      font-size: 20px;
+      margin: 16px 0 8px;
+      font-size: 16px;
     }
 
     button {
       width: 100%;
-      margin-bottom: 8px;
-      padding: 14px;
+      margin-bottom: 6px;
+      padding: 11px;
       border: none;
       border-radius: 8px;
       background: #2d2d2d;
       color: white;
-      font-size: 16px;
+      font-size: 13px;
       font-weight: bold;
       text-align: left;
       cursor: pointer;
     }
 
-    button.active {
-      background: #ff7a00;
-    }
+    button.active { background: #ff7a00; }
 
     .display {
       width: 100%;
@@ -73,24 +63,12 @@
       overflow: hidden;
     }
 
-    .display-line {
-      display: block;
-      width: 100%;
-    }
+    .display-line { display: block; width: 100%; }
 
-    .hint {
-      opacity: 0.5;
-      font-size: 34px;
-      text-align: center;
-    }
+    .hint { opacity: 0.5; font-size: 28px; text-align: center; }
 
-    .top-actions {
-      margin-bottom: 20px;
-    }
-
-    .small-btn {
-      background: #444;
-    }
+    .top-actions { margin-bottom: 16px; }
+    .small-btn { background: #444; }
   </style>
 </head>
 <body>
@@ -133,11 +111,11 @@
       if (selected.length === 0) {
         display.className = "hint";
         display.textContent = "Wähle einen Tanz";
-        display.style.fontSize = "34px";
+        display.style.fontSize = "28px";
       } else {
         display.className = "display";
         display.innerHTML = selected
-          .map(dance => `<div class="display-line">${dance}</div>`)
+          .map(dance => `<div class=\"display-line\">${dance}</div>`)
           .join("");
         requestAnimationFrame(fitDisplayText);
       }
