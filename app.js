@@ -1,3 +1,5 @@
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
 const params = new URLSearchParams(window.location.search);
 const mode = params.get('mode');
 
@@ -7,14 +9,23 @@ const dances = {
   Sonstiges: ["Discofox","Salsa","Bachata"]
 };
 
+async function setDance(text){
+  await supabase.from('state').upsert({ id: 1, text });
+}
+
+async function getDance(){
+  const { data } = await supabase.from('state').select('*').eq('id',1).single();
+  return data?.text || '';
+}
+
 if(mode === 'display'){
   const el = document.getElementById('app');
   const display = document.createElement('div');
   display.className = 'display';
   el.appendChild(display);
 
-  function update(){
-    display.textContent = localStorage.getItem('currentDance') || '';
+  async function update(){
+    display.textContent = await getDance();
   }
 
   setInterval(update, 500);
@@ -37,7 +48,7 @@ else{
       const btn = document.createElement('button');
       btn.className = 'btn';
       btn.textContent = d;
-      btn.onclick = () => localStorage.setItem('currentDance', d);
+      btn.onclick = () => setDance(d);
       grid.appendChild(btn);
     });
 
@@ -52,19 +63,19 @@ else{
   const pause = document.createElement('button');
   pause.className = 'btn';
   pause.textContent = 'PAUSE';
-  pause.onclick = () => localStorage.setItem('currentDance','PAUSE');
+  pause.onclick = () => setDance('PAUSE');
 
   const clear = document.createElement('button');
   clear.className = 'btn';
   clear.textContent = 'LEER';
-  clear.onclick = () => localStorage.setItem('currentDance','');
+  clear.onclick = () => setDance('');
 
   const custom = document.createElement('button');
   custom.className = 'btn';
   custom.textContent = 'TEXT';
   custom.onclick = () => {
     const txt = prompt('Text eingeben');
-    if(txt) localStorage.setItem('currentDance', txt);
+    if(txt) setDance(txt);
   };
 
   extras.appendChild(pause);
