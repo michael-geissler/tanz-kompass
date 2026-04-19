@@ -31,7 +31,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 40px;
+      padding: 32px;
       box-sizing: border-box;
     }
 
@@ -60,20 +60,22 @@
 
     .display {
       width: 100%;
-      font-size: 96px;
-      font-weight: 800;
+      height: 100%;
       text-align: center;
-      line-height: 1.05;
-      word-break: break-word;
       display: flex;
       flex-direction: column;
-      gap: 18px;
       align-items: center;
       justify-content: center;
+      gap: 0.14em;
+      line-height: 0.95;
+      font-weight: 800;
+      word-break: break-word;
+      overflow: hidden;
     }
 
     .display-line {
       display: block;
+      width: 100%;
     }
 
     .hint {
@@ -111,15 +113,33 @@
 
     let selected = [];
 
+    function fitDisplayText() {
+      if (!display.classList.contains("display")) return;
+
+      const right = document.querySelector(".right");
+      const maxWidth = right.clientWidth - 20;
+      const maxHeight = right.clientHeight - 20;
+      let size = 220;
+
+      display.style.fontSize = size + "px";
+
+      while ((display.scrollWidth > maxWidth || display.scrollHeight > maxHeight) && size > 28) {
+        size -= 2;
+        display.style.fontSize = size + "px";
+      }
+    }
+
     function updateDisplay() {
       if (selected.length === 0) {
         display.className = "hint";
         display.textContent = "Wähle einen Tanz";
+        display.style.fontSize = "34px";
       } else {
         display.className = "display";
         display.innerHTML = selected
           .map(dance => `<div class="display-line">${dance}</div>`)
           .join("");
+        requestAnimationFrame(fitDisplayText);
       }
     }
 
@@ -170,6 +190,8 @@
         });
       });
     }
+
+    window.addEventListener("resize", fitDisplayText);
 
     render();
     updateDisplay();
